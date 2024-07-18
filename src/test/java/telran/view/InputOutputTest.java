@@ -3,11 +3,14 @@ package telran.view;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDate;
-
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.*;
 import org.junit.jupiter.api.Test;
 record User(String username, String password,
 		LocalDate dateLastLogin, String phoneNumber, int numberOfLogins) {}
 class InputOutputTest {
+private static final int LEAST_PASSWORD_LENGTH = 8;
 InputOutput io = new SystemInputOutput();
 	@Test
 	void readObjectTest() {
@@ -21,22 +24,87 @@ InputOutput io = new SystemInputOutput();
 	}
 	@Test
 	void readUserByFields() {
-	    String username = io.readStringPredicate("Enter username: ", "Username must be at least 6 ASCII letters, first Capital, others Lower case",
-	        str -> str.matches("[A-Z][a-z]{5,}"));
-
-	    String password = io.readStringPredicate("Enter password: ", "Password must be at least 8 symbols, at least one capital letter, at least one lower case letter, at least one digit, at least one symbol from \"#$*&%\"",
-	        str -> str.matches("(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[#$*&%]).{8,}"));
-
-	    String phoneNumber = io.readStringPredicate("Enter phone number: ", "Phone number must be a valid Israel mobile phone",
-	        str -> str.matches("\\+9725\\d{8}"));
-
-	    LocalDate dateLastLogin = io.readIsoDateRange("Enter last login date (yyyy-mm-dd): ", "Date must not be after current date", LocalDate.MIN, LocalDate.now());
-
-	    Integer numberOfLogins = io.readInt("Enter number of logins: ", "Number of logins must be a positive number");
-
-	    User user = new User(username, password, dateLastLogin, phoneNumber, numberOfLogins);
-	    io.writeLine(user);
+		
+		// create User object from separate fields and display out
+		//username at least 6 ASCII letters - first Capital, others Lower case
+		//password at least 8 symbols, at least one capital letter,
+		//at least one lower case letter, at least one digit, at least one symbol from "#$*&%.-"
+		//phone number - Israel mobile phone
+		//dateLastLogin not after current date
+		//number of logins any positive number
+		String username = io.readStringPredicate("Enter username",
+				"Wrong username format (at least 6 ASCII letters - first Capital, others Lower case)",
+				str -> str.matches("[A-Z][a-z]{5,}"));
+		String password = io.readStringPredicate("Enter password (at least 8 symbols, at least one capital letter "
+				+ "at least one lower case letter, at least one digit, at least one symbol from \"#$*&%\"",
+				"Error ", this::passwordValidation);
+		LocalDate lastLoginDate =
+				io.readIsoDateRange("Enter Last Login Date", "Wrong date",
+						LocalDate.MIN, LocalDate.now().plusDays(1));
+		String phoneNumber =
+				io.readStringPredicate("Enter phone number", "Wrong phone number", str -> 
+				str.matches("(\\+972-?|0)5\\d-?(\\d{3}-\\d{2}-|\\d{2}-?\\d{3}-?)\\d{2}"));
+		int numberOfLogins = io.readNumberRange("Enter number of logins","must be positive integer" , 1, Integer.MAX_VALUE)
+				.intValue();
+		io.writeLine(new User(username, password, lastLoginDate,
+				phoneNumber, numberOfLogins));
+		
 	}
-
+	static class CharacterRuleState {
+		boolean flag;
+		Predicate<Character> predicate;
+		String errorMessage;
+		CharacterRuleState(boolean flag, Predicate<Character> predicate, String errorMessage) {
+			this.flag = flag;
+			this.predicate = predicate;
+			this.errorMessage = errorMessage;
+		}
+		
+		
+	}
+	boolean passwordValidation(String password) {
+		if (password.length() < LEAST_PASSWORD_LENGTH) {
+			throw new RuntimeException(String.format("less than %d characters", LEAST_PASSWORD_LENGTH));
+		}
+		List<CharacterRuleState> passwordRules = getPasswordCharacterRules();
+		for(char symbol: password.toCharArray()) {
+			updateRulesState(symbol, passwordRules);
+		}
+		String errorMessage = checkRulesState(passwordRules);
+		if(!errorMessage.isEmpty()) {
+			throw new RuntimeException(errorMessage);
+		}
+		return true;
+	}
+	private String checkRulesState(List<CharacterRuleState> passwordRules) {
+		
+		return passwordRules.stream().filter(r -> !r.flag)
+				.map(r -> r.errorMessage)
+				.collect(Collectors.joining(";"));
+	}
+	private void updateRulesState(char symbol, List<CharacterRuleState> passwordRules) {
+		Iterator<CharacterRuleState> it = passwordRules.iterator();
+		boolean isNotFound = true;
+		do {
+			CharacterRuleState rule = it.next();
+			if (rule.predicate.test(symbol)) {
+				rule.flag = true;
+				isNotFound = false;
+			}
+		}while(it.hasNext() && isNotFound);
+		if(isNotFound) {
+			throw new RuntimeException("disallowed symbol " + symbol);
+		}
+	}
+	private List<CharacterRuleState> getPasswordCharacterRules() {
+		String symbols = "#$*&%.-";
+		CharacterRuleState[] rulesArray = {
+			new CharacterRuleState(false, Character::isUpperCase, "no capital letter"),
+			new CharacterRuleState(false, Character::isLowerCase, "no lower case letter"),
+			new CharacterRuleState(false, Character::isDigit, "no digit letter"),
+			new CharacterRuleState(false, c -> symbols.contains("" + c), "no symbol from " + symbols),
+		};
+		return List.of(rulesArray);
+	}
 
 }

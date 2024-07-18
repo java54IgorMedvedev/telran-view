@@ -38,133 +38,71 @@ public interface InputOutput {
 	 * @return Integer number
 	 */
 	default Integer readInt(String prompt, String errorPrompt) {
-	    Integer res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = Integer.parseInt(str);
-	            running = false;
-	        } catch (NumberFormatException e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
-	}
+		// Entered string must be a number otherwise, errorPrompt with cycle
+		return readObject(prompt, errorPrompt, Integer::parseInt);
 
+	}
 
 	default Long readLong(String prompt, String errorPrompt) {
-	    Long res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = Long.parseLong(str);
-	            running = false;
-	        } catch (NumberFormatException e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
-	}
+		// Entered string must be a number otherwise, errorPrompt with cycle
+		return readObject(prompt, errorPrompt, Long::parseLong);
 
+	}
 
 	default Double readDouble(String prompt, String errorPrompt) {
-	    Double res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = Double.parseDouble(str);
-	            running = false;
-	        } catch (NumberFormatException e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
-	}
+		// Entered string must be a number otherwise, errorPrompt with cycle
+		return readObject(prompt, errorPrompt, Double::parseDouble);
 
+	}
 
 	default Double readNumberRange(String prompt, String errorPrompt, double min, double max) {
-	    Double res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = Double.parseDouble(str);
-	            if (res >= min && res < max) {
-	                running = false;
-	            } else {
-	                writeLine(errorPrompt + " Value out of range");
-	            }
-	        } catch (NumberFormatException e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
-	}
+		// Entered string must be a number in range (min <= number < max) otherwise,
+		// errorPrompt with cycle
+		return readObject(prompt, errorPrompt,
+				string -> {
 
-	default String readStringPredicate(String prompt, String errorPrompt, Predicate<String> predicate) {
-	    String res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        if (predicate.test(str)) {
-	            res = str;
-	            running = false;
-	        } else {
-	            writeLine(errorPrompt);
-	        }
-	    }
-	    return res;
-	}
+			double res = Double.parseDouble(string);
+			if (res < min) {
+				throw new IllegalArgumentException("must be not less than " + min);
+			}
+			if (res > max) {
+				throw new IllegalArgumentException("must be not greater than " + max);
+			}
+			return res;
 
-	default String readStringOptions(String prompt, String errorPrompt, HashSet<String> options) {
-	    String res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        if (options.contains(str)) {
-	            res = str;
-	            running = false;
-	        } else {
-	            writeLine(errorPrompt);
-	        }
-	    }
-	    return res;
+		});
 	}
-
+	default String readStringPredicate(String prompt, String errorPrompt,
+			Predicate<String> predicate) {
+		//Entered String must match a given predicate
+		return readObject(prompt, errorPrompt, string -> {
+			if(!predicate.test(string)) {
+				throw new IllegalArgumentException("");
+			}
+			return string;
+		});
+	}
+	default String readStringOptions(String prompt, String errorPrompt,
+			HashSet<String> options) {
+		//Entered String must be one out of a given options
+		return readStringPredicate(prompt, errorPrompt, options::contains);
+	}
 	default LocalDate readIsoDate(String prompt, String errorPrompt) {
-	    LocalDate res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = LocalDate.parse(str);
-	            running = false;
-	        } catch (Exception e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
+		//Entered String must be a LocalDate in format (yyyy-mm-dd)
+		return readObject(prompt, errorPrompt, LocalDate::parse);
 	}
+	default LocalDate readIsoDateRange(String prompt, String errorPrompt, LocalDate from,
+			LocalDate to) {
+		//Entered String must be a LocalDate in format (yyyy-mm-dd) in the (from, to)(after from and before to)
+		return readObject(prompt, errorPrompt, string -> {
+			LocalDate res = LocalDate.parse(string);
+			if(!(res.isAfter(from)&& res.isBefore(to))) {
+				throw new IllegalArgumentException
+				(String.format("Date must be after %s before %s", from, to));
+			}
+			return res;
+		});
+	}
+	
 
-	default LocalDate readIsoDateRange(String prompt, String errorPrompt, LocalDate from, LocalDate to) {
-	    LocalDate res = null;
-	    boolean running = true;
-	    while (running) {
-	        String str = readString(prompt);
-	        try {
-	            res = LocalDate.parse(str);
-	            if (res.isAfter(from) && res.isBefore(to)) {
-	                running = false;
-	            } else {
-	                writeLine(errorPrompt + " Date out of range");
-	            }
-	        } catch (Exception e) {
-	            writeLine(errorPrompt + " " + e.getMessage());
-	        }
-	    }
-	    return res;
-	}
 }
